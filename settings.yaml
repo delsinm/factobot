@@ -1,0 +1,102 @@
+# settings.yaml — global bot configuration.
+# Safe to commit. No secrets. See commands.yaml for webhooks and access control.
+# Changes require a redeploy; no Python code changes needed.
+
+
+# =============================================================================
+# Bot
+# =============================================================================
+
+bot:
+  # Slash command name. Must exactly match the Slack app slash command registration.
+  # e.g. factobot → /factobot, itbot → /itbot. Lowercase, no spaces.
+  # See README → Customising the Bot Name.
+  name: factobot
+
+  # Messages kept per user (user + assistant combined). 6 = 3 full exchanges.
+  # Enough for follow-up questions without accumulating stale context.
+  max_history: 6
+
+  # Hours of inactivity before conversation history is cleared.
+  # 4h covers a half-day work block; increase for longer sessions.
+  session_timeout_hours: 4
+
+  # How long (in minutes) a callback token remains valid after a webhook is fired.
+  # Once expired, a callback from the workflow receiver will be rejected even if
+  # the token is correct. Set based on your slowest expected workflow duration.
+  # Default: 60 minutes. Minimum: 1.
+  callback_token_ttl_minutes: 60
+
+
+# =============================================================================
+# Security — Callback Server
+# =============================================================================
+
+security:
+  callback:
+    # Maximum number of POST requests accepted from a single IP address
+    # within the rate_limit_window_seconds window. Requests beyond this
+    # threshold receive a 429 Too Many Requests response.
+    # Default: 20 requests. Set higher for high-volume environments.
+    rate_limit_requests: 20
+
+    # The sliding window duration for rate limiting, in seconds.
+    # Default: 60 seconds (i.e. max 20 requests per IP per minute).
+    rate_limit_window_seconds: 60
+
+    # Maximum allowed size of an incoming callback request body, in bytes.
+    # Requests larger than this are rejected with 413 Request Entity Too Large
+    # before the body is parsed, preventing memory exhaustion attacks.
+    # Default: 8192 bytes (8 KB) — far more than any legitimate callback needs.
+    max_payload_bytes: 8192
+
+# =============================================================================
+# AI Provider
+# =============================================================================
+
+ai:
+  # LiteLLM model string — change this to switch providers. Format: "provider/model"
+  # Set the matching API key in .env. Full list: https://docs.litellm.ai/docs/providers
+  #
+  # Anthropic — requires ANTHROPIC_API_KEY:
+  #   anthropic/claude-sonnet-4-20250514
+  #   anthropic/claude-opus-4-20250514
+  #
+  # OpenAI (OPENAI_API_KEY):
+  #   openai/gpt-4o                        ← recommended: fast, high quality
+  #   openai/gpt-4o-mini                   ← cheaper, slightly less capable
+  #
+  # Google Gemini (GEMINI_API_KEY):
+  #   gemini/gemini-2.0-flash              ← recommended: fast, competitive pricing
+  #   gemini/gemini-2.5-pro                ← highest quality, best for complex tasks
+  model: "anthropic/claude-sonnet-4-20250514"
+
+
+# =============================================================================
+# Icons
+# =============================================================================
+# All URLs must be publicly accessible over HTTPS (Slack fetches server-side).
+# Omit a URL and that message renders without an image. See README → Hosting Icons.
+#
+#   info  — modals and help messages    (neutral: robot, info symbol)
+#   ack   — confirmation DMs            (positive: checkmark, thumbs up)
+#   error — access denied / errors      (warning: padlock, caution triangle)
+
+icons:
+  info:  "https://your-bucket.s3.amazonaws.com/info-icon.png"
+  ack:   "https://your-bucket.s3.amazonaws.com/ack-icon.png"
+  error: "https://your-bucket.s3.amazonaws.com/error-icon.png"
+
+
+# =============================================================================
+# MCP Integrations
+# =============================================================================
+# MCP (Model Context Protocol) connections are configured at the AI provider
+# level, not here. This keeps integration management out of the bot's codebase
+# and removes the need for a redeploy when adding new integrations.
+#
+# Configure MCP servers in your AI provider's console:
+#   Anthropic: console.anthropic.com → Settings → Integrations
+#   OpenAI:    platform.openai.com → Assistants → Tools
+#
+# The bot passes no MCP configuration — the provider handles it automatically.

@@ -1,0 +1,392 @@
+# commands.yaml
+# -------------
+# Defines all /factobot subcommands, their access controls, and their form fields.
+#
+# This file contains workflow definitions and webhook URLs — keep the repo
+# private so webhook URLs are not exposed publicly.
+#
+# For bot identity and icon configuration, see settings.yaml.
+#
+# The bot reads this file at startup. Adding or modifying a command requires
+# only editing this file and redeploying — no Python code changes are needed.
+#
+#
+# ACCESS CONTROL — "allowed" key
+# --------------------------------
+# Every command must have an "allowed" list declaring who can run it.
+# If the "allowed" key is missing, the command is locked down for everyone.
+#
+# Each entry in "allowed" can be one of:
+#
+#   all           — any member of the Slack workspace can run this command
+#
+#   <group>       — any member of a Slack user group. The value must match
+#                   the group's handle exactly as set in Slack (case-insensitive).
+#                   Any group in your workspace works — the bot resolves membership
+#                   dynamically at runtime via the Slack API, so no groups need to
+#                   be pre-registered anywhere in the code or config.
+#
+#                   Examples: hr-managers, it-admins, finance-leads, eng-staff
+#
+#   <user-id>     — a specific individual by their Slack user ID (starts with U,
+#                   e.g. U012AB3CD). Found via: Profile → More → Copy member ID.
+#
+# Entries are checked in order. Access is granted on the first match.
+# A user only needs to match ONE entry to gain access.
+# Multiple entries are OR'd together, not AND'd.
+#
+# To find a group's handle: Slack workspace → People & user groups → [group] → Edit → Handle
+#
+# IMPORTANT: The bot requires the "usergroups:read" OAuth scope to resolve
+# group membership. Add it in the Slack app settings under:
+#   OAuth & Permissions → Bot Token Scopes → Add an OAuth Scope
+#
+#
+# FIELD TYPES
+# -----------
+#   text        — single-line plain text input
+#   date        — native Slack calendar date picker (returns YYYY-MM-DD)
+#   select      — single-choice dropdown (requires "options")
+#   multiselect — multi-choice dropdown (requires "options")
+#
+# FIELD PROPERTIES
+# ----------------
+#   id          — unique identifier within this command (lowercase-with-hyphens)
+#                 Used as block_id and action_id in Slack's Block Kit
+#   label       — field label shown in the modal
+#   type        — one of: text, date, select, multiselect
+#   placeholder — hint text shown before the user types (text fields only)
+#   required    — if true, the form cannot be submitted without this field
+#   options     — list of {label, value} pairs (select and multiselect only)
+#
+#
+# ACTION TYPES
+# ------------
+# Each command can specify action_type to control how it is executed.
+# If action_type is omitted, "webhook" is assumed (backward compatible).
+#
+#   action_type: webhook   (default)
+#     Fires an HTTP POST to webhook_url with the form values as JSON.
+#     Requires: webhook_url
+#
+#   action_type: skill
+#     Runs a SKILL.md-based AI skill. The skill is looked up by name
+#     from /mnt/skills/<skill_name>/SKILL.md. User skills take priority
+#     over public skills (user/ > examples/ > public/).
+#     Requires: skill_name
+#
+# Examples:
+#
+#   # Webhook command (original behaviour):
+#   onboard:
+#     action_type: webhook          # optional — "webhook" is the default
+#     webhook_url: "https://your-webhook-receiver.com/onboard"
+#     ...
+#
+#   # Skill command:
+#   provision-hardware:
+#     action_type: skill
+#     skill_name: it-onboarding-provisioner
+#     ...
+#
+#
+# WEBHOOK URLS
+# ------------
+# Replace placeholder URLs with your webhook receiver URLs.
+# Each command has its own URL so requests route to the right workflow.
+# Keep the repo private so webhook URLs are not exposed publicly.
+
+# =============================================================================
+# Commands
+# =============================================================================
+
+commands:
+
+  # --------------------------------------------------------------------------
+  # onboard — provision a new hire
+  #
+  # Restricted to HR managers and IT admins. Regular HR staff and other
+  # employees cannot trigger this command.
+  # --------------------------------------------------------------------------
+  onboard:
+    description: "Onboard a new hire and trigger provisioning"
+    webhook_url: "https://your-webhook-receiver.com/onboard"
+    allowed:
+      - hr-managers
+      - it-admins
+
+    fields:
+
+      - id: name
+        label: "Full Name"
+        type: text
+        placeholder: "e.g. Alex Johnson"
+        required: true
+
+      - id: role
+        label: "Job Title"
+        type: text
+        placeholder: "e.g. Product Manager"
+        required: true
+
+      - id: start_date
+        label: "Start Date"
+        type: date
+        required: true
+
+      - id: employee_type
+        label: "Employee Type"
+        type: select
+        required: true
+        options:
+          - label: "Full-Time Employee"
+            value: fte
+          - label: "Contractor"
+            value: contractor
+          - label: "Intern"
+            value: intern
+
+      - id: department
+        label: "Department"
+        type: select
+        required: true
+        options:
+          - label: "Engineering"
+            value: engineering
+          - label: "Product"
+            value: product
+          - label: "Design"
+            value: design
+          - label: "Marketing"
+            value: marketing
+          - label: "Sales"
+            value: sales
+          - label: "Operations"
+            value: operations
+          - label: "HR"
+            value: hr
+          - label: "Finance"
+            value: finance
+
+  # --------------------------------------------------------------------------
+  # offboard — remove access for a departing employee
+  #
+  # Restricted to HR managers only. More sensitive than onboarding because
+  # it revokes access — IT admins can be added here if needed.
+  # --------------------------------------------------------------------------
+  offboard:
+    description: "Offboard a departing employee and revoke access"
+    webhook_url: "https://your-webhook-receiver.com/offboard"
+    allowed:
+      - hr-managers
+
+    fields:
+
+      - id: name
+        label: "Full Name"
+        type: text
+        placeholder: "e.g. Alex Johnson"
+        required: true
+
+      - id: employee_id
+        label: "Employee ID"
+        type: text
+        placeholder: "e.g. EMP-1042"
+        required: false
+
+      - id: last_day
+        label: "Last Day"
+        type: date
+        required: true
+
+      - id: access_removal
+        label: "Systems to Revoke Access"
+        type: multiselect
+        required: true
+        options:
+          - label: "All Systems (Full Offboard)"
+            value: all
+          - label: "Okta"
+            value: okta
+          - label: "GitHub"
+            value: github
+          - label: "AWS"
+            value: aws
+          - label: "Google Workspace"
+            value: google_workspace
+          - label: "Slack"
+            value: slack
+          - label: "Jira / Confluence"
+            value: jira
+          - label: "Datadog"
+            value: datadog
+
+      - id: notes
+        label: "Additional Notes"
+        type: text
+        placeholder: "Any special instructions for the offboarding"
+        required: false
+
+  # --------------------------------------------------------------------------
+  # update-access — modify system access for an existing employee
+  #
+  # Available to HR managers and IT admins. HR ICs are not included because
+  # granting/revoking system access should go through a manager or IT.
+  # --------------------------------------------------------------------------
+  update-access:
+    description: "Update system access for an existing employee"
+    webhook_url: "https://your-webhook-receiver.com/update-access"
+    allowed:
+      - hr-managers
+      - it-admins
+
+    fields:
+
+      - id: name
+        label: "Full Name"
+        type: text
+        placeholder: "e.g. Alex Johnson"
+        required: true
+
+      - id: employee_id
+        label: "Employee ID"
+        type: text
+        placeholder: "e.g. EMP-1042"
+        required: false
+
+      - id: action
+        label: "Action"
+        type: select
+        required: true
+        options:
+          - label: "Grant Access"
+            value: grant
+          - label: "Revoke Access"
+            value: revoke
+          - label: "Change Role / Permission Level"
+            value: change_role
+
+      - id: systems
+        label: "Systems"
+        type: multiselect
+        required: true
+        options:
+          - label: "Okta"
+            value: okta
+          - label: "GitHub"
+            value: github
+          - label: "AWS"
+            value: aws
+          - label: "Google Workspace"
+            value: google_workspace
+          - label: "Jira / Confluence"
+            value: jira
+          - label: "Datadog"
+            value: datadog
+          - label: "Figma"
+            value: figma
+          - label: "Salesforce"
+            value: salesforce
+
+      - id: reason
+        label: "Reason for Change"
+        type: text
+        placeholder: "e.g. Promotion to senior engineer, team transfer"
+        required: true
+
+  # --------------------------------------------------------------------------
+  # list-access — look up what systems an employee currently has access to
+  #
+  # Open to all workspace members. This is a read-only lookup — no changes
+  # are made, so broader access is appropriate. HR ICs, managers, and IT
+  # staff may all have legitimate reasons to check access.
+  # --------------------------------------------------------------------------
+  list-access:
+    description: "List current system access for an employee"
+    webhook_url: "https://your-webhook-receiver.com/list-access"
+    allowed:
+      - all
+
+    fields:
+
+      - id: name
+        label: "Full Name"
+        type: text
+        placeholder: "e.g. Alex Johnson"
+        required: true
+
+      - id: employee_id
+        label: "Employee ID"
+        type: text
+        placeholder: "e.g. EMP-1042 (helps narrow results if name is common)"
+        required: false
+
+      - id: scope
+        label: "Report Scope"
+        type: select
+        required: true
+        options:
+          - label: "All Systems"
+            value: all
+          - label: "Identity & SSO (Okta)"
+            value: okta
+          - label: "Cloud Infrastructure (AWS)"
+            value: aws
+          - label: "Source Control (GitHub)"
+            value: github
+          - label: "Productivity (Google Workspace)"
+            value: google_workspace
+
+  # --------------------------------------------------------------------------
+  # provision-hardware — example skill-based command
+  #
+  # Demonstrates action_type: skill. Instead of firing a webhook, this command
+  # runs the it-onboarding-provisioner SKILL.md via the AI model directly.
+  # Remove or replace this with your actual skill-based commands.
+  # --------------------------------------------------------------------------
+  provision-hardware:
+    description: "Provision hardware for a new hire via AI skill"
+    action_type: skill
+    skill_name: it-onboarding-provisioner
+    allowed:
+      - it-admins
+
+    fields:
+
+      - id: employee_name
+        label: "Employee Name"
+        type: text
+        placeholder: "e.g. Alex Johnson"
+        required: true
+
+      - id: role
+        label: "Job Title"
+        type: text
+        placeholder: "e.g. Software Engineer"
+        required: true
+
+      - id: department
+        label: "Department"
+        type: select
+        required: true
+        options:
+          - label: "Engineering"
+            value: engineering
+          - label: "Product"
+            value: product
+          - label: "Design"
+            value: design
+          - label: "Operations"
+            value: operations
+
+      - id: hardware_tier
+        label: "Hardware Tier"
+        type: select
+        required: true
+        options:
+          - label: "Standard Laptop"
+            value: standard
+          - label: "Developer Workstation"
+            value: developer
+          - label: "Executive Package"
+            value: executive
