@@ -14,14 +14,12 @@ or pointing it at a different webhook requires only editing `commands.yaml` or
 ## Features
 
 - **Configurable slash command** — set `bot.name` in `settings.yaml` (`/factobot`, `/itbot`, etc.)
-- **YAML-driven commands** — define commands, fields, webhook URLs, and access rules in `commands.yaml`
 - **Per-command access control** — restrict each command to Slack user groups or individuals; use `all` for everyone
 - **Block Kit modals** — rich form dialogs built dynamically from the YAML
 - **Custom icons** — configure separate icons for info, acknowledgment, and error states in `settings.yaml`
 - **Webhook integration** — each command POSTs to its own URL; works with Make, Zapier, n8n, or any receiver
 - **Bidirectional callbacks** — workflow receivers call back when a job completes; the bot DMs the result to the submitter
 - **Callback security** — one-time tokens, configurable TTL, per-IP rate limiting, and payload size cap
-- **MCP integrations** — connect to Confluence, Jira, and other services via MCP servers configured in `settings.yaml`
 - **Provider-agnostic AI** — swap between Anthropic, OpenAI, and Gemini with one line in `settings.yaml`
 - **Conversational AI** — chat via DM or @mention with per-user history and configurable session timeout
 - **Reset command** — `/reset-chat` clears a user's conversation history
@@ -241,8 +239,6 @@ All icon URLs must be publicly accessible over HTTPS. Slack fetches images serve
 | `FALLBACK_WEBHOOK_URL` | Global fallback webhook for AI-triggered workflows. Per-command webhooks are in `commands.yaml`. |
 | `CALLBACK_BASE_URL` | Public base URL of this bot (e.g. `https://your-app.railway.app`). Required to enable workflow completion callbacks. When absent the bot runs in fire-and-forget mode. |
 | `CALLBACK_PORT` | Port the Flask callback server listens on internally. Default: `3000`. |
-| `ATLASSIAN_API_TOKEN` | Required when the Atlassian MCP server is enabled. Generate at id.atlassian.com → Security → API tokens. |
-| `ATLASSIAN_EMAIL` | Email address associated with the Atlassian API token. |
 
 > **Note:** `bot.name`, `ai.model`, `max_history`, `session_timeout_hours`, `callback_token_ttl_minutes`, and all security settings are configured in `settings.yaml`, not as environment variables.
 
@@ -273,54 +269,6 @@ Icon URLs must be publicly accessible over HTTPS. Slack fetches them server-side
 | Cloudflare R2 | Generous free tier, no egress fees |
 
 GitHub raw URLs work only for public repositories. For private repos, use a cloud storage bucket with public read access.
-
----
-
-## MCP Integrations
-
-MCP (Model Context Protocol) lets the AI query external services — Confluence,
-Jira, GitHub, Slack, and more — during natural language conversations. The AI
-decides when to query which service; no extra code is needed.
-
-### How it works
-
-A user asks: *"What's the laptop policy for new hires?"*
-The AI searches Confluence, finds the relevant policy page, and summarises it.
-
-A user asks: *"What's the status of IT-1042?"*
-The AI queries Jira and reports the ticket's status, assignee, and last update.
-
-### Enabling Atlassian (Confluence + Jira)
-
-1. Generate an API token at [id.atlassian.com](https://id.atlassian.com) → Security → API tokens
-2. Add credentials to `.env`:
-   ```
-   ATLASSIAN_API_TOKEN=your-api-token
-   ATLASSIAN_EMAIL=you@yourcompany.com
-   ```
-3. The Atlassian MCP server is already configured in `settings.yaml` — no further changes needed
-
-### Adding other MCP servers
-
-Add entries to `settings.yaml` under `integrations.mcp_servers`:
-
-```yaml
-integrations:
-  mcp_servers:
-    - name: atlassian
-      url: "https://mcp.atlassian.com/v1/mcp"
-    - name: github
-      url: "https://api.githubcopilot.com/mcp/"
-```
-
-Then add the relevant credentials to `.env`. Full server list: [github.com/modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers).
-
-### Disabling MCP
-
-```yaml
-integrations:
-  mcp_servers: []
-```
 
 ---
 
