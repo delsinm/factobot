@@ -1,4 +1,4 @@
-![Factobot](./images/robot_BIO_RH_460px_web-2.png)
+![Factobot](images/robot_BIO_RH_460px_web.png)
 
 # Factobot — Configurable Slack Workflow Bot
 
