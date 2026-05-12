@@ -6,6 +6,8 @@
 
 Factobot combines AI for conversational help with Block Kit modals for structured data collection, per-command access control, webhook integration for workflow automation, and bidirectional callback support so users are notified when a triggered workflow completes. Factobot is entirely data-driven — adding a new command, changing who can run it, or pointing it at a different webhook requires only editing `commands.yaml` or `settings.yaml`. No Python code changes are needed.
 
+**NOTE:** Backend is in YAML for development purposes only. Future versions will require a database backend. **This code is in active development and is not production-ready.**
+
 ---
 
 ## Features
@@ -23,8 +25,6 @@ Factobot combines AI for conversational help with Block Kit modals for structure
 - **Block Kit modals** — rich form dialogs make user interaction more natural
 - **Custom icons** — configure separate icons for info, acknowledgment, and error states in `settings.yaml`
 - **Scriptorium** — browser-based configuration wizard (`scriptorium/scriptorium.html`) for generating YAML without editing files directly
-
-**NOTE:** Backend is in YAML for development purposes only. Future vesions will require a database backend. **This code is in active development and is not production-ready.**
 
 ---
 
