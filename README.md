@@ -24,7 +24,7 @@ Factobot combines AI for conversational help with Block Kit modals for structure
 - **Reset command** — `/reset-chat` clears a user's conversation history
 - **Block Kit modals** — rich form dialogs make user interaction more natural
 - **Custom icons** — configure separate icons for info, acknowledgment, and error states in `settings.yaml`
-- **Scriptorium** — browser-based configuration wizard (`scriptorium/scriptorium.html`) for generating YAML without editing files directly
+- **Scriptorium** — browser-based configuration wizard (`scriptorium/scriptorium.html`) for generating YAML without editing files directly (TODO: OIDC)
 
 ---
 
