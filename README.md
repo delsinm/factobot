@@ -22,7 +22,7 @@ The bot is entirely data-driven — adding a new command, changing who can run i
 - **Custom icons** — configure separate icons for info, acknowledgment, and error states in `settings.yaml`
 - **Scriptorium** — browser-based configuration wizard (`scriptorium/scriptorium.html`) for generating YAML without editing files directly
 
-**NOTE: **Backend is in** **YAML for development purposes only. Future vesions will require a database backend.
+**NOTE: **Backend is in** **YAML for development purposes only. Future vesions will require a database backend. **This code is in active development and is not production-ready.**
 
 ---
 
