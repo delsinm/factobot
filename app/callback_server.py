@@ -30,12 +30,25 @@ Expected request body (JSON):
       "status":         "success",        ← "success" or "failure"
       "message":        "Alex Johnson provisioned in Okta and GitHub.",
       "result_url":     "https://acme.okta.com/admin/user/00u1ab",  ← optional
-      "fields":         {"Okta group": "engineering", "GitHub org": "acme"}  ← optional
+      "fields":         {"Okta group": "engineering", "GitHub org": "acme"},  ← optional
+      "next_action":    "provision-hardware"  ← optional: command name to chain
     }
+
+CHAINED WORKFLOWS (next_action)
+--------------------------------
+If "next_action" is present, the bot DMs the user a prompt to run the named
+command as their next step, immediately after posting the completion result.
+
+The prompt uses Slack's slash command formatting so the user can act on it
+in one click. next_action is only sent when status is "success" — a failed
+workflow does not prompt for the next step.
+
+The named command must exist in commands.yaml. If it does not, the callback
+is rejected with 400 before any Slack messages are sent.
 
 Responses:
     200 {"ok": true}             — callback accepted and Slack notified
-    400 {"error": "..."}         — missing required fields
+    400 {"error": "..."}         — missing required fields or unknown next_action
     401 {"error": "..."}         — invalid or expired token
     413 {"error": "..."}         — request body exceeds MAX_PAYLOAD_BYTES
     429 {"error": "..."}         — rate limit exceeded for this IP
@@ -80,6 +93,7 @@ import time
 from flask import Flask, jsonify, request
 
 from app import job_store
+from app.command_loader import get_command
 from app.modals import build_callback_result_blocks
 from app.settings_loader import (
     RATE_LIMIT_REQUESTS,
@@ -186,6 +200,11 @@ def create_app(slack_client) -> Flask:
 
         Validates required fields, redeems the pending job, and posts a
         success or failure DM to the user who triggered the workflow.
+
+        If "next_action" is present and status is "success", a follow-up DM
+        is sent prompting the user to run the named command as their next step.
+        The command is validated against commands.yaml before any Slack messages
+        are posted — an unknown next_action returns 400.
         """
         global _request_count
         _request_count += 1
@@ -211,11 +230,12 @@ def create_app(slack_client) -> Flask:
             logger.warning("Callback from %s with no JSON body.", client_ip)
             return jsonify({"error": "Request body must be JSON."}), 400
 
-        token      = body.get("callback_token", "").strip()
-        status     = body.get("status", "").strip().lower()
-        message    = body.get("message", "").strip()
-        result_url = body.get("result_url", "").strip() or None
-        fields     = body.get("fields") or None
+        token       = body.get("callback_token", "").strip()
+        status      = body.get("status", "").strip().lower()
+        message     = body.get("message", "").strip()
+        result_url  = body.get("result_url", "").strip() or None
+        fields      = body.get("fields") or None
+        next_action = body.get("next_action", "").strip() or None
 
         # Validate result_url if supplied — must be https to be safe to render
         # as a Slack button URL. Non-https URLs are silently dropped rather than
@@ -238,6 +258,22 @@ def create_app(slack_client) -> Flask:
         if status not in ("success", "failure"):
             return jsonify({"error": "status must be 'success' or 'failure'."}), 400
 
+        # Validate next_action before touching job_store — an unknown command
+        # name is a configuration error in the workflow receiver that should be
+        # caught and reported immediately, not silently ignored after notifying Slack.
+        if next_action:
+            next_command = get_command(next_action)
+            if not next_command:
+                logger.warning(
+                    "Callback next_action %r is not a known command. Rejecting.", next_action
+                )
+                return jsonify({
+                    "error": f"next_action '{next_action}' is not a known command. "
+                             f"Check commands.yaml for valid command names."
+                }), 400
+        else:
+            next_command = None
+
         # --- Redeem the job token ---
         job = job_store.redeem_job(token)
 
@@ -250,9 +286,11 @@ def create_app(slack_client) -> Flask:
         notify_channels = job.get("notify_channels", [])
 
         logger.info(
-            "Callback accepted: command=%s status=%s channel=%s notify_channels=%s result_url=%s fields=%s ip=%s",
+            "Callback accepted: command=%s status=%s channel=%s notify_channels=%s "
+            "result_url=%s fields=%s next_action=%s ip=%s",
             command_name, status, channel_id, notify_channels,
-            result_url or "(none)", list(fields.keys()) if fields else "(none)", client_ip,
+            result_url or "(none)", list(fields.keys()) if fields else "(none)",
+            next_action or "(none)", client_ip,
         )
 
         result_blocks = build_callback_result_blocks(
@@ -296,6 +334,31 @@ def create_app(slack_client) -> Flask:
                 len(all_channels),
                 post_errors,
             )
+
+        # --- Prompt the next step if requested ---
+        # Only sent on success — a failed workflow should not cascade forward.
+        # Sent only to the submitter's DM (channel_id), not to notify_channels,
+        # since it is a personal call-to-action, not a broadcast update.
+        if next_action and next_command and status == "success":
+            next_description = next_command.get("description", next_action)
+            try:
+                slack_client.chat_postMessage(
+                    channel=channel_id,
+                    text=(
+                        f"*Next step:* {next_description}\n"
+                        f"Run `/{next_action}` when you're ready to continue."
+                    ),
+                )
+                logger.info(
+                    "Next action prompt sent to channel %s: command=%s",
+                    channel_id, next_action,
+                )
+            except Exception as exc:
+                # A failure to send the prompt does not affect the 200 response —
+                # the workflow result was already delivered successfully above.
+                logger.exception(
+                    "Failed to post next_action prompt to channel %s: %s", channel_id, exc
+                )
 
         return jsonify({"ok": True}), 200
 

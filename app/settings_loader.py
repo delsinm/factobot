@@ -54,7 +54,7 @@ _SETTINGS_PATH = pathlib.Path(__file__).parent.parent / "settings.yaml"
 
 # Defaults used only when settings.yaml is absent entirely.
 _DEFAULT_BOT_NAME                   = "factobot"
-_DEFAULT_MAX_HISTORY                = 4
+_DEFAULT_MAX_HISTORY                = 6
 _DEFAULT_SESSION_TIMEOUT_HOURS      = 4
 _DEFAULT_CALLBACK_TOKEN_TTL_MINUTES = 60
 _DEFAULT_AI_MODEL                   = "anthropic/claude-sonnet-4-20250514"
@@ -208,8 +208,8 @@ def _parse_max_history(bot: dict) -> int:
     if raw is None:
         raise ValueError(
             "settings.yaml: bot.max_history is required.\n"
-            "Recommended value: 4 (2 full conversation exchanges).\n"
-            "  bot:\n    max_history: 4"
+            "Recommended value: 6 (3 full conversation exchanges).\n"
+            "  bot:\n    max_history: 6"
         )
 
     if not isinstance(raw, int) or isinstance(raw, bool):

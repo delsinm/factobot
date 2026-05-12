@@ -21,13 +21,14 @@ The history is a list of dicts in the standard chat format all providers use:
         {"role": "user",      "content": "what fields does it ask for?"},
     ]
 
-WHY MAX_HISTORY=4
------------------
+WHY MAX_HISTORY IS KEPT SMALL
+------------------------------
 This bot's conversational mode is a short-lived reference tool — users ask one
 or two questions about the bot's capabilities, then switch to a slash command.
-Keeping 4 messages (2 full back-and-forth exchanges) gives the model enough
-context to resolve pronouns and follow-up questions without accumulating stale
-history that will never be used.
+Keeping a short window of messages (default 6, i.e. 3 full exchanges) gives
+the model enough context to resolve pronouns and follow-up questions without
+accumulating stale history that will never be used. The value is set via
+bot.max_history in settings.yaml and loaded by settings_loader.
 
 WHY SESSION TIMEOUTS
 --------------------
@@ -245,15 +246,14 @@ def get_response(user_id: str, user_message: str) -> str:
       5. Append the reply and save the updated history
 
     TRIMMING STRATEGY
-    History is trimmed to MAX_HISTORY (4) messages before the API call.
-    4 messages = 2 full exchanges, which is enough for the model to resolve
-    pronouns and follow-up questions ("what fields does it ask for?") without
-    accumulating context that will never be used again.
+    History is trimmed to MAX_HISTORY messages before the API call.
+    The default is 6 messages (3 full exchanges), which is enough for the model
+    to resolve pronouns and follow-up questions ("what fields does it ask for?")
+    without accumulating context that will never be used again.
 
     We trim the list sent to the model but save the full updated history —
     meaning we always store the latest messages locally and let the trim
     act as a sliding window on what the model sees, not on what we keep.
-    In practice at MAX_HISTORY=4, stored and sent are always the same size.
 
     Args:
         user_id:      The Slack user ID. Used as the history key.

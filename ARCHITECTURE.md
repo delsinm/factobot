@@ -11,11 +11,13 @@ Factobot is a Slack bot with two distinct interaction modes that share the same
 underlying infrastructure:
 
 **Modal mode** — a user runs `/factobot <command>`, fills out a structured form,
-and the bot fires a webhook to trigger a downstream workflow.
+and the bot either fires a webhook to trigger a downstream workflow (`action_type: webhook`)
+or executes an AI skill (`action_type: skill`) inline.
 
 **Conversational mode** — a user sends a DM or @mention, the configured AI model
 answers using its own knowledge and, when relevant, queries external services
-(Confluence, Jira, etc.) via MCP servers configured in `settings.yaml`.
+(Confluence, Jira, etc.) via MCP servers configured at the AI provider level
+(not in this codebase — see your provider's console).
 
 Both modes run in a single Python process. The process also runs a Flask HTTP
 server in a background thread to receive workflow completion callbacks.
@@ -37,8 +39,11 @@ server in a background thread to receive workflow completion callbacks.
 │   │       └── LiteLLM → AI provider                     │
 │   │               └── MCP servers (Confluence, Jira...) │
 │   └── Modal mode  (modals.py + handlers.py)             │
-│           └── webhook_client.py → Any webhook receiver  │
-│                       │                                 │
+│           ├── webhook commands                          │
+│           │       └── webhook_client.py → receiver      │
+│           └── skill commands                            │
+│                   └── skill_runner.py → LiteLLM         │
+│                                                         │
 │   Flask (callback server, daemon thread)                │
 │   └── POST /webhook/callback ← Workflow receivers       │
 │           └── job_store.py (token registry)             │
@@ -47,6 +52,7 @@ server in a background thread to receive workflow completion callbacks.
 │   commands.yaml  ←──  command_loader.py                 │
 │   config.py      ←──  all modules                       │
 │   access_control.py  ←──  handlers.py                   │
+│   db.py  ←── loaders (optional, when DATABASE_URL set)  │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -62,6 +68,7 @@ the reverse.
 main.py
   ├── handlers.py          ← registers all Slack event handlers
   │     ├── ai_client.py        ← LiteLLM API calls + conversation history
+  │     ├── skill_runner.py     ← SKILL.md-based AI skill execution (skill commands)
   │     ├── webhook_client.py   ← outbound webhook POSTs + callback block injection
   │     ├── job_store.py        ← ephemeral callback token registry
   │     ├── access_control.py   ← per-command access checks
@@ -72,11 +79,16 @@ main.py
   └── callback_server.py   ← Flask HTTP server for workflow completion callbacks
         ├── job_store.py        ← shared with handlers (thread-safe)
         └── modals.py           ← shared result block builders
+
+db.py  ← optional PostgreSQL backend (used when DATABASE_URL is set)
+         loaded by settings_loader.py and command_loader.py at startup
+         if a database row exists, file-based YAML is overridden by the DB value
 ```
 
 `commands.yaml` and `settings.yaml` are the two non-Python inputs. Both are
 read once at startup by their respective loaders and cached for the lifetime
-of the process.
+of the process. When `DATABASE_URL` is set, `db.py` is consulted first and
+the file-based YAML serves as the fallback.
 
 ---
 
@@ -572,7 +584,52 @@ security reviewer can audit and adjust them without touching Python code.
 
 ---
 
-## Data Flow Summary
+### 12. Skill Commands as a First-Class Action Type
+
+Commands can set `action_type: skill` to run a `SKILL.md`-based AI skill
+instead of firing an external webhook. The skill runner (`skill_runner.py`):
+
+1. Resolves the skill by name from an ordered list of search paths:
+   `/mnt/skills/user` → `/mnt/skills/examples` → `/mnt/skills/public`
+2. Reads the `SKILL.md` file, which encodes task-specific instructions
+3. Builds a prompt combining the skill instructions with the form's submitted values
+4. Calls the AI model via LiteLLM and returns the result as a string
+
+**Why skills instead of webhooks:** Some operations (Jira ticket creation,
+hardware assignment lookup, policy checks) can be handled entirely by the AI
+with the right instructions, without requiring an external workflow tool.
+Skills are synchronous — the result is posted in the confirmation DM
+immediately, without a callback token or TTL. This makes them suitable for
+lower-latency tasks where Make/Zapier round-trips would add unnecessary delay.
+
+**Why the search-path priority order:** User skills (`/mnt/skills/user`) take
+precedence over example and public skills so an operator can override or extend
+a built-in skill without modifying shared files. The first match wins.
+
+---
+
+### 13. Optional PostgreSQL Backend via db.py
+
+When `DATABASE_URL` is set, `db.py` provides a PostgreSQL persistence layer
+for bot configuration. `settings_loader.py` and `command_loader.py` check for
+a database row at startup; if one exists, it overrides the on-disk YAML files.
+If not, the files are used as normal.
+
+**Why optional:** Many deployments don't need database persistence — the YAML
+files are edited in source control, committed, and deployed. The database layer
+exists for teams that want live configuration changes without redeployments,
+and for the Scriptorium UI, which can save configuration back to the database
+after each edit session.
+
+**Schema:** Three tables under the public schema:
+- `config_settings` — single-row JSONB blob for all settings.yaml values
+- `config_commands` — one row per command, JSONB for the full command config
+- `breakglass_users` — bcrypt-hashed credentials for emergency admin access
+
+All tables are created with `CREATE TABLE IF NOT EXISTS` — startup is safe on
+both brand-new and pre-provisioned databases.
+
+---
                     commands.yaml
                          │
                          ▼
@@ -601,7 +658,12 @@ handlers.py          modals.py
     │        ├── _last_seen dict (monotonic timestamps)
     │        └── LiteLLM → AI provider → MCP servers
     │
-    ├── webhook_client.py
+    ├── skill_runner.py  (action_type: skill commands)
+    │        │
+    │        ├── reads SKILL.md from /mnt/skills/<name>/
+    │        └── LiteLLM → AI provider → result string
+    │
+    ├── webhook_client.py  (action_type: webhook commands)
     │        │
     │        ├── HTTP POST → webhook receiver
     │        └── callback block injected into payload
@@ -609,7 +671,8 @@ handlers.py          modals.py
     └── job_store.py ────────────────────────────┐
              │                                   │
              └── _store dict (token → job)       │
-                        ↑ write on fire          │ read on callback
+                  ↑ write on webhook fire        │ read on callback
+                  (includes notify_channels)     │
                                                  ▼
                               callback_server.py (Flask thread)
                                      │
@@ -618,6 +681,7 @@ handlers.py          modals.py
                                                ↓ payload cap
                                                ↓ token validation
                                          Slack DM to submitter
+                                         + Slack post to notify_channels
 ```
 
 ---

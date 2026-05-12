@@ -113,7 +113,9 @@ def _load_commands() -> dict:
     Validation checks performed:
       - File exists and is valid YAML
       - Top-level "commands" key is present and is a non-empty dict
-      - Each command has "description", "webhook_url", "allowed", and "fields"
+      - Each command has "description", "allowed", and "fields"
+      - webhook commands additionally require "webhook_url"
+      - skill commands additionally require "skill_name"
       - Each command's "allowed" list is present, non-empty, and well-formed
       - Each field has "id", "label", and "type"
       - Each field's "type" is one of the supported values
@@ -270,6 +272,7 @@ def _validate_notify_channels(command_name: str, notify_channels: list) -> None:
 
 
 
+def _validate_allowed(command_name: str, allowed: list) -> None:
     """
     Validate the "allowed" access control list for a command.
 
