@@ -54,7 +54,7 @@ factobot/
     ├── webhook_client.py      # Outbound webhook POSTs with callback block injection
     ├── job_store.py           # Ephemeral callback token registry
     ├── callback_server.py     # Flask server receiving workflow completion callbacks
-    ├── db.py                  # PostgreSQL backend for persisted config (db will be required in final version)
+    ├── db.py                  # PostgreSQL backend for persisted config (db required in final version)
     ├── modals.py              # Dynamic Block Kit modal and message builders
     └── handlers.py            # All Slack event, command, action, and view handlers
 ```
