@@ -12,7 +12,7 @@ Factobot combines AI for conversational help with Block Kit modals for structure
 
 ## Features
 
-- **Configurable slash command** — set `bot.name` in `settings.yaml` (`/factobot`, `/itbot`, etc.)
+- **Configurable slash command** — set `bot.name` in `settings.yaml` (`/factobot`, `/itbot`, etc.) The bot name in your Slack backend must match this.
 - **Per-command access control** — restrict each command to Slack user groups or individuals; use `all` for everyone
 - **Webhook integration** — each command POSTs to its own URL; works with Make, Zapier, n8n, or any receiver
 - **AI skill commands** — commands can run `SKILL.md`-based AI skills instead of firing a webhook
