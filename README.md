@@ -289,11 +289,12 @@ Set the key matching your `ai.model` in `settings.yaml`. Only one is needed.
 Icons are configured in `settings.yaml` under `icons:`, not as environment variables.
 
 
-| Key           | Shown in                                     | Description                                     |
-| ------------- | -------------------------------------------- | ----------------------------------------------- |
-| `icons.info`  | Modals, help messages                        | Neutral icon — robot face, info symbol, or logo |
-| `icons.ack`   | Confirmation DMs and callback success        | Positive icon — checkmark, thumbs up            |
-| `icons.error` | Denial, error, and callback failure messages | Warning icon — padlock, caution triangle        |
+| Key             | Shown in                                     | Description                                     |
+| --------------- | -------------------------------------------- | ----------------------------------------------- |
+| `icons.info`    | Modals, help messages                        | Neutral icon — robot face, info symbol, or logo |
+| `icons.ack`     | Confirmation DMs                             | Neutral icon — lightning bolt, salute           |
+| `icons.success` | Success DMs                                  | Positive icon — checkmark, thumbs up            |
+| `icons.error`   | Denial, error, and callback failure messages | Warning icon — broken gear, "excuse me"         |
 
 
 All icon URLs must be publicly accessible over HTTPS. Slack fetches images server-side.
