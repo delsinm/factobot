@@ -1,8 +1,10 @@
+![Factobot](./images/robot_BIO_RH_460px_web-2.png)
+
 # Factobot — Configurable Slack Workflow Bot
 
-A Slack bot that combines AI for conversational help with Block Kit modals for structured data collection, per-command access control, webhook integration for workflow automation, and bidirectional callback support so users are notified when a triggered workflow completes.
+**Factobot** is a centralized operations engine for Slack, engineered to unify fragmented workflows and advanced AI capabilities into a single, intuitive interface. The name is a portmanteau of *factotum* (Latin for "do everything") and *robot*—and Factobot is designed to do exactly that. By acting as a universal translator between your team and your tech stack, it replaces the clutter of single-purpose apps with a streamlined, secure platform where users can trigger complex automations and interact with AI agents without ever leaving the chat.
 
-The bot is entirely data-driven — adding a new command, changing who can run it, or pointing it at a different webhook requires only editing `commands.yaml` or `settings.yaml`. No Python code changes are needed.
+Factobot combines AI for conversational help with Block Kit modals for structured data collection, per-command access control, webhook integration for workflow automation, and bidirectional callback support so users are notified when a triggered workflow completes. Factobot is entirely data-driven — adding a new command, changing who can run it, or pointing it at a different webhook requires only editing `commands.yaml` or `settings.yaml`. No Python code changes are needed.
 
 ---
 
