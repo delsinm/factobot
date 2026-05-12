@@ -23,11 +23,12 @@ HOW MODAL SUBMISSION ROUTING WORKS
 Because there is now one handler for many different modals, we can't use a fixed
 callback_id string. Instead, modals.py sets the callback_id to:
 
-    "factobot_modal:{command_name}"     e.g. "factobot_modal:onboard"
+    "{bot_name}_modal:{command_name}"     e.g. "factobot_modal:onboard"
 
-Bolt's @app.view() decorator accepts a compiled regex, so we match any callback_id
-that starts with "factobot_modal:" and extract the command name from it inside the
-handler. This keeps a single handler for all modal submissions.
+where bot_name is the value of BOT_NAME (from settings.yaml). Bolt's @app.view()
+decorator accepts a compiled regex, so we match any callback_id that starts with
+"{BOT_NAME}_modal:" and extract the command name from it inside the handler.
+This keeps a single handler for all modal submissions.
 
 TIMING CONSTRAINTS
 ------------------
@@ -303,7 +304,7 @@ def register(app: App) -> None:
         Handle submission of any /factobot modal form.
 
         Matched by MODAL_CALLBACK_PATTERN, which matches any callback_id
-        starting with "factobot_modal:". The command name is extracted from
+        starting with "{BOT_NAME}_modal:". The command name is extracted from
         the callback_id so we know which command was submitted and can look
         up its webhook URL and field definitions.
 

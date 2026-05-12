@@ -26,7 +26,8 @@ to find, no guessing:
         "example": {
           "callback_token": "Kx9mP2vQ...",
           "status":         "success",
-          "message":        "Alex Johnson provisioned in Okta and GitHub."
+          "message":        "Alex Johnson provisioned in Okta and GitHub.",
+          "next_action":    "provision-hardware"   // optional
         }
       }
     }
@@ -187,12 +188,15 @@ def _build_payload(payload: dict, callback_token: str | None) -> dict:
             "When the job completes, POST to callback.url with the fields "
             "shown in callback.example. Use callback.token as-is. "
             "Set status to 'success' or 'failure'. "
-            "Set message to a human-readable description of what happened."
+            "Set message to a human-readable description of what happened. "
+            "Set next_action to a command name (e.g. 'provision-hardware') to prompt "
+            "the user to run that command as their next step; omit if not needed."
         ),
         "example": {
             "callback_token": callback_token,
             "status":         "success",
             "message":        "Job completed successfully.",
+            "next_action":    "next-command-name",   # optional — omit if not chaining
         },
     }
 

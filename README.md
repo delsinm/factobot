@@ -1,13 +1,8 @@
 # Factobot — Configurable Slack Workflow Bot
 
-A Slack bot that combines AI for conversational help with Block Kit modals
-for structured data collection, per-command access control, webhook integration
-for workflow automation, and bidirectional callback support so users are
-notified when a triggered workflow completes.
+A Slack bot that combines AI for conversational help with Block Kit modals for structured data collection, per-command access control, webhook integration for workflow automation, and bidirectional callback support so users are notified when a triggered workflow completes.
 
-The bot is entirely data-driven — adding a new command, changing who can run it,
-or pointing it at a different webhook requires only editing `commands.yaml` or
-`settings.yaml`. No Python code changes are needed.
+The bot is entirely data-driven — adding a new command, changing who can run it, or pointing it at a different webhook requires only editing `commands.yaml` or `settings.yaml`. No Python code changes are needed.
 
 ---
 
@@ -15,14 +10,19 @@ or pointing it at a different webhook requires only editing `commands.yaml` or
 
 - **Configurable slash command** — set `bot.name` in `settings.yaml` (`/factobot`, `/itbot`, etc.)
 - **Per-command access control** — restrict each command to Slack user groups or individuals; use `all` for everyone
-- **Block Kit modals** — rich form dialogs built dynamically from the YAML
-- **Custom icons** — configure separate icons for info, acknowledgment, and error states in `settings.yaml`
 - **Webhook integration** — each command POSTs to its own URL; works with Make, Zapier, n8n, or any receiver
+- **AI skill commands** — commands can run `SKILL.md`-based AI skills instead of firing a webhook
+- **Channel notifications** — webhook commands can broadcast results to additional Slack channels via `notify_channels`
 - **Bidirectional callbacks** — workflow receivers call back when a job completes; the bot DMs the result to the submitter
 - **Callback security** — one-time tokens, configurable TTL, per-IP rate limiting, and payload size cap
 - **Provider-agnostic AI** — swap between Anthropic, OpenAI, and Gemini with one line in `settings.yaml`
 - **Conversational AI** — chat via DM or @mention with per-user history and configurable session timeout
 - **Reset command** — `/reset-chat` clears a user's conversation history
+- **Block Kit modals** — rich form dialogs make user interaction more natural
+- **Custom icons** — configure separate icons for info, acknowledgment, and error states in `settings.yaml`
+- **Scriptorium** — browser-based configuration wizard (`scriptorium/scriptorium.html`) for generating YAML without editing files directly
+
+**NOTE: **Backend is in** **YAML for development purposes only. Future vesions will require a database backend.
 
 ---
 
@@ -37,8 +37,10 @@ factobot/
 ├── Procfile                   # Railway deployment (web: python main.py)
 ├── .env.example               # Copy to .env and fill in your values
 ├── .gitignore
-├── README.md
+├── README.md                  # This file
 ├── ARCHITECTURE.md
+├── scriptorium/
+│   └── scriptorium.html       # Browser-based configuration wizard (no server needed)
 └── app/
     ├── __init__.py
     ├── config.py              # Loads and validates environment variables
@@ -46,9 +48,11 @@ factobot/
     ├── access_control.py      # Per-command access checks against Slack user groups
     ├── command_loader.py      # Reads, validates, and exposes commands.yaml
     ├── ai_client.py           # LiteLLM API calls + per-user conversation history
+    ├── skill_runner.py        # Executes SKILL.md-based AI skills for skill commands
     ├── webhook_client.py      # Outbound webhook POSTs with callback block injection
     ├── job_store.py           # Ephemeral callback token registry
     ├── callback_server.py     # Flask server receiving workflow completion callbacks
+    ├── db.py                  # PostgreSQL backend for persisted config (currently optional - will be required in final version)
     ├── modals.py              # Dynamic Block Kit modal and message builders
     └── handlers.py            # All Slack event, command, action, and view handlers
 ```
@@ -63,45 +67,48 @@ factobot/
 2. Name your app and choose your workspace
 
 #### Enable Socket Mode
-3. **Socket Mode** → Enable → Generate an App-Level Token with `connections:write` scope → save as `SLACK_APP_TOKEN`
+
+1. **Socket Mode** → Enable → Generate an App-Level Token with `connections:write` scope → save as `SLACK_APP_TOKEN`
 
 #### Add Bot Token Scopes
-4. **OAuth & Permissions** → **Bot Token Scopes** → add:
-   ```
+
+1. **OAuth & Permissions** → **Bot Token Scopes** → add:
+  ```
    app_mentions:read    — receive @mention events
    channels:history     — read messages in public channels
    chat:write           — post messages
    im:history           — read direct messages
    im:write             — send direct messages
    usergroups:read      — resolve Slack user group membership for access control
-   ```
+  ```
 
 #### Subscribe to Events
-5. **Event Subscriptions** → Enable → **Bot Events** → add:
-   ```
+
+1. **Event Subscriptions** → Enable → **Bot Events** → add:
+  ```
    app_mention
    message.im
-   ```
+  ```
 
 #### Register Slash Commands
-6. **Slash Commands** → **Create New Command** for each of the following.
-   Request URL can be left blank for Socket Mode.
 
-   | Command | Description |
-   |---|---|
-   | `/factobot` | Main bot command (or whatever you set `bot.name` to) |
-   | `/reset-chat` | Clears the user's conversation history |
+1. **Slash Commands** → **Create New Command** for each of the following.
+  Request URL can be left blank for Socket Mode.
 
-   > **Note:** The name you register here must exactly match `bot.name` in `settings.yaml`.
-   > If you change `bot.name`, update the slash command registration to match.
+  | Command       | Description                                          |
+  | ------------- | ---------------------------------------------------- |
+  | `/factobot`   | Main bot command (or whatever you set `bot.name` to) |
+  | `/reset-chat` | Clears the user's conversation history               |
 
-7. **Install to Workspace** → Authorise → copy the **Bot User OAuth Token** (`xoxb-...`) → save as `SLACK_BOT_TOKEN`
+  > **Note:** The name you register here must exactly match `bot.name` in `settings.yaml`.  
+  > If you change `bot.name`, update the slash command registration to match.
+2. **Install to Workspace** → Authorise → copy the **Bot User OAuth Token** (`xoxb-...`) → save as `SLACK_BOT_TOKEN`
 
 ---
 
 ### 2. Configure settings.yaml
 
-Edit `settings.yaml` to configure the bot. This file is safe to commit — it contains no secrets.
+Edit `settings.yaml` to configure the bot. 
 
 ```yaml
 bot:
@@ -146,24 +153,74 @@ commands:
         required: true
 ```
 
+**Action types (`action_type` key)**
+
+Each command can specify how it executes when submitted. If omitted, `webhook` is the default.
+
+
+| Action type | What it does                                         | Required key  |
+| ----------- | ---------------------------------------------------- | ------------- |
+| `webhook`   | POSTs form values as JSON to `webhook_url`           | `webhook_url` |
+| `skill`     | Runs a `SKILL.md`-based AI skill from `/mnt/skills/` | `skill_name`  |
+
+
+Skill example:
+
+```yaml
+commands:
+  provision-hardware:
+    description: "Provision hardware for a new hire"
+    action_type: skill
+    skill_name: it-onboarding-provisioner   # resolves to /mnt/skills/user/<name>/SKILL.md
+    allowed:
+      - it-admins
+    fields:
+      - id: employee_name
+        label: "Employee Name"
+        type: text
+        required: true
+```
+
+Skill commands run synchronously — the result is posted inline in the confirmation DM. Webhook commands fire-and-forget (or with a callback if `CALLBACK_BASE_URL` is set).
+
+**Channel notifications (`notify_channels` key)**
+
+Webhook commands can optionally broadcast the workflow completion result to one or more Slack channels in addition to the DM sent to the submitter. The bot must be a member of each listed channel.
+
+```yaml
+commands:
+  onboard:
+    webhook_url: "https://..."
+    notify_channels:
+      - C012ABC456    # channel ID — works for public and private channels
+      - "#it-ops"     # channel name — works for public channels only
+    ...
+```
+
+Each entry is either a Slack channel ID (starts with `C`, e.g. `C012ABC456`) or a public channel name prefixed with `#` (e.g. `#it-ops`). Channel IDs work for both public and private channels; `#`-prefixed names work for public channels only. The bot must be a member of each listed channel.
+
 **Access control (`allowed` key)**
 
-| Entry | Who gets access |
-|---|---|
-| `all` | Every member of the Slack workspace |
+
+| Entry         | Who gets access                                   |
+| ------------- | ------------------------------------------------- |
+| `all`         | Every member of the Slack workspace               |
 | `hr-managers` | All members of the `hr-managers` Slack user group |
-| `U012AB3CD` | A specific individual by their Slack user ID |
+| `U012AB3CD`   | A specific individual by their Slack user ID      |
+
 
 Multiple entries are OR'd — a user only needs to match one. The `allowed` key is required; a command without it is locked down for everyone.
 
 **Supported field types**
 
-| Type | Block Kit element | Returned value |
-|---|---|---|
-| `text` | Plain text input | String |
-| `date` | Calendar date picker | `"YYYY-MM-DD"` string |
-| `select` | Single-choice dropdown | Option value string |
-| `multiselect` | Multi-choice dropdown | List of value strings |
+
+| Type          | Block Kit element      | Returned value        |
+| ------------- | ---------------------- | --------------------- |
+| `text`        | Plain text input       | String                |
+| `date`        | Calendar date picker   | `"YYYY-MM-DD"` string |
+| `select`      | Single-choice dropdown | Option value string   |
+| `multiselect` | Multi-choice dropdown  | List of value strings |
+
 
 ---
 
@@ -195,8 +252,9 @@ python main.py
 ```
 
 Test it by:
+
 - Sending a DM to your bot
-- Typing `@Factobot` in a channel
+- Typing `@factobot` in a channel
 - Running `/factobot`
 
 ---
@@ -205,40 +263,49 @@ Test it by:
 
 ### Required
 
-| Variable | Description |
-|---|---|
-| `SLACK_BOT_TOKEN` | Bot OAuth token (`xoxb-...`) |
+
+| Variable          | Description                                  |
+| ----------------- | -------------------------------------------- |
+| `SLACK_BOT_TOKEN` | Bot OAuth token (`xoxb-...`)                 |
 | `SLACK_APP_TOKEN` | App-level token for Socket Mode (`xapp-...`) |
+
 
 ### AI Provider (one required)
 
 Set the key matching your `ai.model` in `settings.yaml`. Only one is needed.
 
-| Variable | When to set |
-|---|---|
+
+| Variable            | When to set                         |
+| ------------------- | ----------------------------------- |
 | `ANTHROPIC_API_KEY` | `ai.model` starts with `anthropic/` |
-| `OPENAI_API_KEY` | `ai.model` starts with `openai/` |
-| `GEMINI_API_KEY` | `ai.model` starts with `gemini/` |
+| `OPENAI_API_KEY`    | `ai.model` starts with `openai/`    |
+| `GEMINI_API_KEY`    | `ai.model` starts with `gemini/`    |
+
 
 ### Icons (all optional)
 
 Icons are configured in `settings.yaml` under `icons:`, not as environment variables.
 
-| Key | Shown in | Description |
-|---|---|---|
-| `icons.info` | Modals, help messages | Neutral icon — robot face, info symbol, or logo |
-| `icons.ack` | Confirmation DMs and callback success | Positive icon — checkmark, thumbs up |
-| `icons.error` | Denial, error, and callback failure messages | Warning icon — padlock, caution triangle |
+
+| Key           | Shown in                                     | Description                                     |
+| ------------- | -------------------------------------------- | ----------------------------------------------- |
+| `icons.info`  | Modals, help messages                        | Neutral icon — robot face, info symbol, or logo |
+| `icons.ack`   | Confirmation DMs and callback success        | Positive icon — checkmark, thumbs up            |
+| `icons.error` | Denial, error, and callback failure messages | Warning icon — padlock, caution triangle        |
+
 
 All icon URLs must be publicly accessible over HTTPS. Slack fetches images server-side.
 
 ### Optional
 
-| Variable | Description |
-|---|---|
-| `FALLBACK_WEBHOOK_URL` | Global fallback webhook for AI-triggered workflows. Per-command webhooks are in `commands.yaml`. |
-| `CALLBACK_BASE_URL` | Public base URL of this bot (e.g. `https://your-app.railway.app`). Required to enable workflow completion callbacks. When absent the bot runs in fire-and-forget mode. |
-| `CALLBACK_PORT` | Port the Flask callback server listens on internally. Default: `3000`. |
+
+| Variable               | Description                                                                                                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `FALLBACK_WEBHOOK_URL` | Global fallback webhook for AI-triggered workflows. Per-command webhooks are in `commands.yaml`.                                                                                                                                                                               |
+| `CALLBACK_BASE_URL`    | Public base URL of this bot (e.g. `https://your-app.railway.app`). Required to enable workflow completion callbacks. When absent the bot runs in fire-and-forget mode.                                                                                                         |
+| `CALLBACK_PORT`        | Port the Flask callback server listens on internally. Default: `3000`.                                                                                                                                                                                                         |
+| `DATABASE_URL`         | PostgreSQL connection string (`postgresql://user:password@host:5432/dbname`). When set, the bot persists configuration in the database so it survives redeploys. Required for the Scriptorium UI. When absent, the bot reads from `settings.yaml` and `commands.yaml` on disk. |
+
 
 > **Note:** `bot.name`, `ai.model`, `max_history`, `session_timeout_hours`, `callback_token_ttl_minutes`, and all security settings are configured in `settings.yaml`, not as environment variables.
 
@@ -261,12 +328,14 @@ Both steps are required. If only one is updated, the slash command will stop wor
 
 Icon URLs must be publicly accessible over HTTPS. Slack fetches them server-side.
 
-| Option | Best for |
-|---|---|
+
+| Option                                           | Best for                                               |
+| ------------------------------------------------ | ------------------------------------------------------ |
 | GitHub raw URL (`raw.githubusercontent.com/...`) | Public repos — free, version-controlled alongside code |
-| AWS S3 public bucket | Already on AWS |
-| Google Cloud Storage public bucket | Already on GCP |
-| Cloudflare R2 | Generous free tier, no egress fees |
+| AWS S3 public bucket                             | Already on AWS                                         |
+| Google Cloud Storage public bucket               | Already on GCP                                         |
+| Cloudflare R2                                    | Generous free tier, no egress fees                     |
+
 
 GitHub raw URLs work only for public repositories. For private repos, use a cloud storage bucket with public read access.
 
@@ -274,9 +343,7 @@ GitHub raw URLs work only for public repositories. For private repos, use a clou
 
 ## Workflow Callbacks
 
-When a webhook is fired, the bot embeds a `callback` block in the outbound
-payload. The workflow receiver uses this to report back when the job is done,
-so the submitter gets a completion DM rather than just a "triggered" message.
+When a webhook is fired, the bot embeds a `callback` block in the outbound payload. The workflow receiver uses this to report back when the job is done, so the submitter gets a completion DM rather than just a "triggered" message.
 
 ### How it works
 
@@ -319,6 +386,7 @@ The `example` object shows the receiver exactly what to POST back — useful for
 ### Enabling callbacks
 
 Set `CALLBACK_BASE_URL` in `.env` to the bot's public URL:
+
 ```
 CALLBACK_BASE_URL=https://your-app.railway.app
 ```
@@ -329,12 +397,14 @@ Without this, the bot runs in fire-and-forget mode — webhooks fire but no comp
 
 Three layers protect the callback endpoint:
 
-| Layer | Mechanism | Configured in |
-|---|---|---|
-| One-time token | Each token is consumed on first use; replayed requests are rejected | Automatic |
-| Token TTL | Tokens expire after `callback_token_ttl_minutes` (default 60) | `settings.yaml` |
+
+| Layer                | Mechanism                                                                                   | Configured in   |
+| -------------------- | ------------------------------------------------------------------------------------------- | --------------- |
+| One-time token       | Each token is consumed on first use; replayed requests are rejected                         | Automatic       |
+| Token TTL            | Tokens expire after `callback_token_ttl_minutes` (default 60)                               | `settings.yaml` |
 | Per-IP rate limiting | Max `rate_limit_requests` per `rate_limit_window_seconds` per source IP; excess returns 429 | `settings.yaml` |
-| Payload size cap | Requests larger than `max_payload_bytes` (default 8 KB) are rejected with 413 | `settings.yaml` |
+| Payload size cap     | Requests larger than `max_payload_bytes` (default 8 KB) are rejected with 413               | `settings.yaml` |
+
 
 ### Health check
 
@@ -375,6 +445,7 @@ No Python changes required.
 6. Railway deploys automatically on every push to `main`
 
 The `Procfile` runs the bot as a `web` process so Railway exposes a public port for the callback server:
+
 ```
 web: python main.py
 ```

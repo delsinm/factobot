@@ -62,22 +62,15 @@ def build_modal(command_name: str, command: dict) -> dict:
 
     The modal title and intro text are derived from the command's name and
     description. The form fields are built dynamically from the command's
-    "fields" list. The bot icon is shown as an image accessory if BOT_ICON_URL
-    is configured.
+    "fields" list.
 
     The modal's callback_id encodes the command name so the submission handler
     knows which command was submitted and can look up the right webhook URL.
     Format: "{bot_name}_modal:{command_name}", e.g. "factobot_modal:onboard".
     The prefix is derived from BOT_NAME so it stays consistent if the name changes.
 
-    Args:
-        command_name: The subcommand name, e.g. "onboard". Used in the title
-                      and callback_id.
-        command:      The command config dict from command_loader.COMMANDS.
-
-    Returns:
-        A dict representing the complete Block Kit modal payload, ready to
-        pass to client.views_open(trigger_id=..., view=...).
+    The INFO icon is shown as an image accessory in the intro section if
+    configured under icons.info in settings.yaml.
     """
 
     # Build all field blocks from the command's field definitions
@@ -367,10 +360,11 @@ def _build_intro_section(description: str) -> dict:
     """
     Build the intro section block shown at the top of every modal.
 
-    Displays the command's description as intro text. If BOT_ICON_URL is
-    configured, the bot icon is attached as an image accessory and Slack
-    renders it to the right of the text. If not configured, the section
-    renders without the image — fully functional either way.
+    Displays the command's description as intro text. If icons.info is
+    configured in settings.yaml, the bot icon is attached as an image
+    accessory and Slack renders it to the right of the text. If not
+    configured, the section renders without the image — fully functional
+    either way.
 
     Args:
         description: The command's description string from commands.yaml.
