@@ -689,37 +689,16 @@ handlers.py          modals.py
 
 ## Security Considerations
 
-**Secrets** — all credentials are loaded from environment variables at startup
-via `require_env()`. The app refuses to start if any required variable is
-missing. No credentials are hardcoded or committed to source control.
+**Secrets** — all credentials are loaded from environment variables at startup via `require_env()`. The app refuses to start if any required variable is missing. No credentials are hardcoded or committed to source control.
 
-**Webhook URLs** — stored in `commands.yaml` alongside the code. The repository
-should be private. For public repositories, webhook URLs should be stored as
-environment variables and resolved at runtime.
+**Webhook URLs** — stored in `commands.yaml` alongside the code. The repository should be private. For public repositories, webhook URLs should be stored as environment variables and resolved at runtime. Furute versions will store these in a database for greater security.
 
-**Access control** — enforced at the application layer before the modal opens.
-Slack's own slash command restrictions provide a coarse outer layer; the bot's
-per-command allowlists provide fine-grained control. Denial messages are
-ephemeral (Slack's `respond()`) so they are visible only to the requesting user.
+**Access control** — enforced at the application layer before the modal opens. Slack's own slash command restrictions provide a coarse outer layer; the bot's per-command allowlists provide fine-grained control. Denial messages are ephemeral (Slack's `respond()`) so they are visible only to the requesting user.
 
-**User group resolution** — the bot calls `usergroups_list` and
-`usergroups_users_list` at access check time, not at startup. This ensures
-group membership is always current (within the 5-minute cache window) rather
-than stale from when the bot last started.
+**User group resolution** — the bot calls `usergroups_list` and `usergroups_users_list` at access check time, not at startup. This ensures group membership is always current (within the 5-minute cache window) rather than stale from when the bot last started.
 
-**Callback endpoint** — protected by three independent layers configured in
-`settings.yaml`: payload size cap (prevents memory exhaustion), per-IP rate
-limiting (prevents brute-force and flooding), and one-time tokens with
-configurable TTL (prevents replay attacks and expired-job callbacks). See
-decision #11 for detailed reasoning.
+**Callback endpoint** — protected by three independent layers configured in `settings.yaml`: payload size cap (prevents memory exhaustion), per-IP rate limiting (prevents brute-force and flooding), and one-time tokens with configurable TTL (prevents replay attacks and expired-job callbacks). See decision #11 for detailed reasoning.
 
-**Callback message content** — the `message` field from the workflow receiver
-is posted directly to Slack. If a receiver is compromised and sends malicious
-content, it appears in the user's DM. Slack's Block Kit sanitises most injection
-vectors, but the token should be treated as a secret — it authorises a DM to a
-real user.
+**Callback message content** — the `message` field from the workflow receiver is posted directly to Slack. If a receiver is compromised and sends malicious content, it appears in the user's DM. Slack's Block Kit sanitises most injection vectors, but the token should be treated as a secret — it authorises a DM to a real user.
 
-**Ack timing** — Slack's 3-second acknowledgment window means all slow
-operations (LiteLLM API, webhook call, Slack group resolution) happen after
-`ack()` is called. This is enforced by convention in every handler and
-documented explicitly in the handler docstrings.
+**Ack timing** — Slack's 3-second acknowledgment window means all slow operations (LiteLLM API, webhook call, Slack group resolution) happen after `ack()` is called. This is enforced by convention in every handler and documented explicitly in the handler docstrings. 
