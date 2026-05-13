@@ -630,6 +630,7 @@ All tables are created with `CREATE TABLE IF NOT EXISTS` — startup is safe on
 both brand-new and pre-provisioned databases.
 
 ---
+```
                     commands.yaml
                          │
                          ▼
